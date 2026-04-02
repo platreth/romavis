@@ -905,44 +905,65 @@ Repeats every 14 days
 
 ## 9. Epic 8 — UI & Frontend
 
-### 9.1 Map — Leaflet + React
+### 9.1 Game Map — PixiJS 8
 
-**Stack**: `react-leaflet@5` with `L.CRS.Simple` (flat coordinate system).
+**Stack**: `pixi.js@8` + `@pixi/react` + `pixi-viewport`
 
-**MapContainer config**:
+**Rendering layers** (bottom to top):
+
+| Layer | Rendering | Content |
+|-------|-----------|---------|
+| 1. Ocean | Tiled sprite + wave shader | Animated water texture, subtle movement |
+| 2. Territory | Color overlay shader | Legion-colored regions per controlled islands |
+| 3. Islands | Sprite sheet | Large/small island sprites at their (x,y) coordinates |
+| 4. Native villages | Small sprites | 8 per large island, around island sprite |
+| 5. Cities | Colored markers | Player/Legion color, size scales with points |
+| 6. Movements | Animated paths | Troop sprites moving along Bezier curves (red=attack, green=support) |
+| 7. Fog of war | Alpha shader | Darkened areas where player has no visibility |
+| 8. UI overlay | PixiJS text + React portals | Tooltips, selection rings, action menus |
+
+**Zoom-dependent detail**:
+
+| Zoom Level | View | What renders |
+|------------|------|-------------|
+| 0.1 - 0.3 | World | Ocean grid lines, territory colors, island dots, Legion labels |
+| 0.3 - 0.6 | Ocean | Island sprites with city count badge, trade route lines |
+| 0.6 - 1.0 | Island | Individual city markers, native village sprites, city names |
+| 1.0+ | Close | Building silhouettes on cities, detailed tooltips, action buttons |
+
+**Viewport config**:
 
 ```typescript
-{
-  crs: L.CRS.Simple,
-  center: [500, 500],
-  zoom: 3,
-  minZoom: 2,
-  maxZoom: 8,
-  preferCanvas: true,
-  zoomDelta: 0.5,
-  zoomSnap: 0.5,
-  maxBounds: [[0, 0], [1000, 1000]],
-  maxBoundsViscosity: 1.0,
-}
+import { Viewport } from 'pixi-viewport';
+
+const viewport = new Viewport({
+  worldWidth: 10000,      // 1000 game units × 10px
+  worldHeight: 10000,
+  screenWidth: window.innerWidth,
+  screenHeight: window.innerHeight,
+});
+
+viewport
+  .drag()                   // Pan with mouse/touch
+  .pinch()                  // Mobile pinch-to-zoom
+  .wheel()                  // Scroll wheel zoom
+  .decelerate()             // Momentum after drag
+  .clampZoom({ minScale: 0.1, maxScale: 3.0 })
+  .clamp({ direction: 'all' });  // Can't pan outside world
 ```
-
-**Zoom-dependent rendering**:
-
-| Zoom | View   | Content                                                |
-| ---- | ------ | ------------------------------------------------------ |
-| 2-3  | World  | Ocean grid, Legion territories, clustered islands      |
-| 4-5  | Ocean  | Individual islands with city count badges              |
-| 6-7  | Island | Individual cities as colored markers, native villages  |
-| 8+   | Close  | City names, points, player names, action buttons       |
 
 **Interactions**:
 
-- Click island → island info panel
-- Click city → city info popup
-- Right-click city → action menu (attack, support, spy, trade)
-- Movement lines (dashed, color-coded: red=attack, green=support)
+- Click island → island info panel (React overlay)
+- Click city → city info popup (React overlay)
+- Right-click city → context menu (attack, support, spy, trade)
+- Hover → tooltip with name, points, player, Legion
+- Animated troop sprites along movement paths
+- Selection ring around selected city
 
-**Data loading**: viewport-based API calls, not full-world fetch.
+**Data loading**: viewport-based API calls. On pan/zoom, fetch islands + cities in visible bounds. Cull off-screen sprites.
+
+**Performance target**: 60fps with 5000 islands + 30000 cities rendered (WebGL sprite batching).
 
 ### 9.2 City View
 
@@ -1119,22 +1140,171 @@ PlayerPurchase {
 
 ## 11. Tech Stack
 
-| Layer                   | Choice                         | Notes                             |
-| ----------------------- | ------------------------------ | --------------------------------- |
-| **Frontend**      | React 19 + TypeScript + Vite   | Fast dev, shared types            |
-| **Map**           | react-leaflet 5 + L.CRS.Simple | Flat game world, canvas renderer  |
-| **Client state**  | Zustand                        | Lightweight                       |
-| **Data fetching** | TanStack Query                 | Cache, dedup, background refresh  |
-| **i18n**          | react-i18next                  | FR + EN                           |
-| **Backend**       | Node.js + Fastify + TypeScript | Fast, WebSocket support           |
-| **Database**      | PostgreSQL                     | Complex relational data           |
-| **ORM**           | Drizzle                        | Type-safe, lightweight            |
-| **Cache/Queues**  | Redis                          | Event queue, sessions             |
-| **Real-time**     | WebSocket (ws)                 | Attack alerts, map updates        |
-| **Auth**          | JWT + bcrypt                   | Stateless                         |
-| **Payments**      | Stripe                         | Skin shop                         |
-| **Hosting**       | VPS (Hetzner)                  | Cost-effective for game server    |
-| **Monorepo**      | pnpm workspaces                | shared / server / client packages |
+| Layer | Choice | Why |
+|-------|--------|-----|
+| **Backend** | Elixir + Phoenix 1.7 | BEAM VM: built for millions of concurrent connections, fault tolerance, hot code reload. Each world = a GenServer process. If one world crashes, others keep running. |
+| **Real-time** | Phoenix Channels | Best WebSocket implementation in any framework. Built-in presence tracking, rooms, pub/sub. |
+| **Database** | PostgreSQL 16 | Complex relational data. Ecto (Elixir ORM) is the best ORM in any language. |
+| **Cache** | Redis + ETS | ETS for hot game state (in-memory, built into BEAM). Redis for cross-node pub/sub and sessions. |
+| **Auth** | Guardian (JWT) + bcrypt_elixir | Standard Elixir auth libraries. |
+| **Frontend** | React 19 + TypeScript + Vite | Best ecosystem for complex SPA. |
+| **Game Map** | PixiJS 8 + @pixi/react + pixi-viewport | WebGL/WebGPU rendering. Handles 100k+ sprites at 60fps. Animated water, smooth zoom, troop movement animations. |
+| **Client state** | Zustand | Lightweight, no boilerplate. |
+| **Data fetching** | TanStack Query | Cache, dedup, background refresh for REST. |
+| **i18n** | react-i18next | FR + EN at launch. |
+| **API spec** | OpenAPI 3.1 (open_api_spex) | Auto-generate TypeScript client from Phoenix API definitions. |
+| **Payments** | Stripe (stripity_stripe) | Skin shop. |
+| **Hosting** | Hetzner VPS | Cost-effective. Single server handles 10+ worlds with BEAM's efficiency. |
+| **Deployment** | Mix releases + Docker | Single binary release. Hot code upgrades possible (deploy without stopping worlds). |
+
+### Why Elixir for a game server
+
+| Feature | Benefit for Imperium |
+|---------|---------------------|
+| **GenServer per world** | Each world is an isolated process with its own state. Crash isolation — one world bug doesn't kill others. |
+| **Millions of concurrent connections** | BEAM was built for telecom (Ericsson). 1000 players × 10 worlds with persistent WebSocket = trivial. |
+| **Phoenix Channels** | Join `world:roma` channel, receive real-time events. Presence tracking shows who's online. Built-in. |
+| **ETS tables** | In-memory key-value store built into the VM. Perfect for hot game state (active movements, resource cache). Zero latency. |
+| **Hot code reload** | Deploy bug fixes without restarting worlds. Players don't even notice. |
+| **Supervisors** | If the combat engine process crashes, the supervisor restarts it in milliseconds. Self-healing. |
+| **Scheduled tasks** | `Process.send_after(self(), :complete_building, 3600_000)` — timer events are native to the language. No external queue needed. |
+| **Pattern matching** | `def handle_cast({:attack, %{units: units}}, state)` — game logic reads like game design docs. |
+
+### Why PixiJS for the game map
+
+| Feature | Benefit for Imperium |
+|---------|---------------------|
+| **WebGL/WebGPU** | GPU-accelerated rendering. 100k+ sprites at 60fps. |
+| **Sprite batching** | 5000 islands + 30000 cities rendered in a few draw calls. No DOM overhead. |
+| **Shaders** | Animated ocean, fog of war, territory overlays, day/night cycle. |
+| **Animations** | Troop movements as animated sprites on paths. Battle particle effects. |
+| **pixi-viewport** | Pan, zoom, decelerate, bounds — replaces Leaflet's pan/zoom. |
+| **Smooth zoom** | Continuous zoom from world view to city view. No tile-loading jank. |
+| **Sprite sheets** | All game assets in optimized atlases. Minimal network requests. |
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────┐
+│                   BEAM VM                        │
+│                                                  │
+│  ┌──────────────┐  ┌──────────────┐             │
+│  │  World:Roma   │  │  World:Carthago │  ...     │
+│  │  (GenServer)  │  │  (GenServer)    │          │
+│  │               │  │                 │          │
+│  │  ├─ EventQueue│  │  ├─ EventQueue  │          │
+│  │  ├─ ETS Cache │  │  ├─ ETS Cache   │          │
+│  │  └─ Timers    │  │  └─ Timers      │          │
+│  └──────┬───────┘  └──────┬──────────┘          │
+│         │                  │                     │
+│  ┌──────┴──────────────────┴──────┐              │
+│  │     Phoenix (HTTP + Channels)   │              │
+│  │     REST API + WebSocket        │              │
+│  └──────────────┬─────────────────┘              │
+└─────────────────┼───────────────────────────────┘
+                  │
+        ┌─────────┴─────────┐
+        │   PostgreSQL 16    │
+        │   + Redis          │
+        └───────────────────┘
+
+┌─────────────────────────────────────────────────┐
+│              Browser (React SPA)                  │
+│                                                  │
+│  ┌──────────────────┐  ┌─────────────────┐      │
+│  │   PixiJS 8       │  │  React Panels    │      │
+│  │   (Game Map)     │  │  (City, Military,│      │
+│  │   pixi-viewport  │  │   Legion, etc.)  │      │
+│  └────────┬─────────┘  └────────┬────────┘      │
+│           │                      │               │
+│  ┌────────┴──────────────────────┴────────┐     │
+│  │  Zustand (state) + TanStack Query (API) │     │
+│  │  + Phoenix Channel client (real-time)    │     │
+│  └──────────────────────────────────────────┘     │
+└─────────────────────────────────────────────────┘
+```
+
+### Project Structure
+
+```
+romavis/
+├── server/                    # Elixir/Phoenix backend
+│   ├── lib/
+│   │   ├── romavis/           # Business logic
+│   │   │   ├── accounts/      # User, auth, sessions
+│   │   │   ├── worlds/        # World lifecycle, settings
+│   │   │   ├── game/          # Core game engine
+│   │   │   │   ├── world_server.ex      # GenServer per world
+│   │   │   │   ├── event_queue.ex       # Priority queue for timed events
+│   │   │   │   ├── combat_engine.ex     # Battle resolution
+│   │   │   │   ├── resource_calculator.ex
+│   │   │   │   ├── movement_tracker.ex
+│   │   │   │   └── world_generator.ex   # Island placement algorithm
+│   │   │   ├── towns/        # Town, buildings, recruitment
+│   │   │   ├── military/     # Units, movements, combat
+│   │   │   ├── divine/       # Gods, powers, heroes
+│   │   │   ├── social/       # Legions, messages, reports
+│   │   │   └── shop/         # Skins, Stripe integration
+│   │   │
+│   │   └── romavis_web/       # Phoenix web layer
+│   │       ├── controllers/   # REST API controllers
+│   │       ├── channels/      # Phoenix Channels (WebSocket)
+│   │       │   ├── world_channel.ex     # world:roma, world:carthago
+│   │       │   └── user_channel.ex      # user-specific notifications
+│   │       └── plugs/         # Auth, rate limiting
+│   │
+│   ├── priv/
+│   │   └── repo/migrations/   # Ecto migrations
+│   ├── config/
+│   ├── test/
+│   └── mix.exs
+│
+├── client/                    # React + TypeScript + Vite
+│   ├── src/
+│   │   ├── game/              # PixiJS game map
+│   │   │   ├── GameMap.tsx          # Main PixiJS stage + viewport
+│   │   │   ├── layers/
+│   │   │   │   ├── OceanLayer.tsx   # Animated water tiles
+│   │   │   │   ├── IslandLayer.tsx  # Island sprites
+│   │   │   │   ├── CityLayer.tsx    # City markers
+│   │   │   │   ├── MovementLayer.tsx # Animated troop paths
+│   │   │   │   ├── TerritoryLayer.tsx # Legion territory colors
+│   │   │   │   └── FogLayer.tsx     # Fog of war shader
+│   │   │   ├── sprites/             # Sprite sheet definitions
+│   │   │   └── shaders/             # GLSL shaders (water, fog)
+│   │   │
+│   │   ├── panels/            # React UI panels
+│   │   │   ├── CityPanel.tsx
+│   │   │   ├── MilitaryPanel.tsx
+│   │   │   ├── LegionPanel.tsx
+│   │   │   ├── ResearchPanel.tsx
+│   │   │   └── TemplePanel.tsx
+│   │   │
+│   │   ├── tools/             # Built-in game tools
+│   │   │   ├── AttackPlanner.tsx
+│   │   │   ├── CityManager.tsx
+│   │   │   ├── BattleSimulator.tsx
+│   │   │   └── DefensePlanner.tsx
+│   │   │
+│   │   ├── store/             # Zustand stores
+│   │   ├── api/               # TanStack Query + Phoenix Channel client
+│   │   ├── i18n/              # FR + EN translations
+│   │   └── types/             # Shared TypeScript types (generated from OpenAPI)
+│   │
+│   ├── public/
+│   │   └── assets/            # Sprite sheets, fonts
+│   └── package.json
+│
+├── shared/                    # OpenAPI spec + game data
+│   ├── openapi.yaml           # API spec → generates TS types
+│   └── data/                  # Game data JSONs (unit stats, building costs, etc.)
+│
+├── docs/                      # Specs (already on GitHub)
+│   ├── specs/
+│   └── grepolis-private-server-reference.md
+│
+└── docker-compose.yml         # PostgreSQL + Redis for local dev
+```
 
 ---
 
@@ -1246,11 +1416,16 @@ ShopItem (global)
 | POST   | `/api/shop/purchase`  | Buy skin (Stripe)        |
 | GET    | `/api/shop/inventory` | Player's purchased skins |
 
-### WebSocket
+### Phoenix Channels (Real-time)
 
-| Channel                       | Events                                                                                                           |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `ws://server/ws/world/:wid` | `attack_incoming`, `movement_arrived`, `building_complete`, `conquest`, `message`, `alliance_update` |
+| Channel | Join | Events |
+|---------|------|--------|
+| `world:{slug}` | On entering a world | `attack_incoming`, `movement_arrived`, `building_complete`, `conquest`, `city_founded`, `world_event` |
+| `user:{id}` | On login | `message`, `report`, `legion_invite`, `hero_healed`, `research_complete` |
+| `legion:{id}` | On Legion membership | `legion_message`, `member_joined`, `member_left`, `pact_update`, `shared_plan` |
+| `island:{id}` | On viewing island | `city_changed_owner`, `native_village_update`, `new_city_founded` |
+
+Phoenix Channels use WebSocket with automatic reconnection, heartbeat, and fallback to long-polling.
 
 ---
 
