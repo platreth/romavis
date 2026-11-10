@@ -1,0 +1,16 @@
+{
+  "name": "romavis",
+  "private": true,
+  "packageManager": "pnpm@10.16.1",
+  "scripts": {
+    "db:up": "docker compose up -d --wait",
+    "db:migrate": "pnpm --filter @romavis/server migrate",
+    "world:create": "pnpm --filter @romavis/server world:create",
+    "dev:server": "pnpm --filter @romavis/server dev",
+    "dev:client": "pnpm --filter @romavis/client dev",
+    "sim": "pnpm --filter @romavis/shared sim",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "build": "pnpm --filter @romavis/client build"
+  }
+}
