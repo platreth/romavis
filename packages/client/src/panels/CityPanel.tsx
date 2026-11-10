@@ -41,7 +41,7 @@ export function CityPanel({ city, speed }: { city: CityDto; speed: number }) {
   const rates = productionRates(city.levels, speed);
   const cap = storageCapacity(city.levels.horreum);
   const planned = plannedLevels(city.levels, city.queue);
-  const popUsed = populationUsed(planned);
+  const popUsed = populationUsed(planned) + city.unitPop;
   const popCap = populationCap(planned.fundus);
 
   return (
@@ -85,7 +85,7 @@ export function CityPanel({ city, speed }: { city: CityDto; speed: number }) {
                   <strong>{label(o.building)}</strong>
                   <span className="muted">{t('city.toLevel', { n: o.targetLevel })}</span>
                   <span className="queue__time">{o.dueAt !== null ? formatDuration(o.dueAt - now) : t('city.waiting')}</span>
-                  <button className="btn btn--ghost" disabled={busy || !canCancel(city.levels, city.queue, i)} onClick={() => cancel.mutate(o.id)}>
+                  <button className="btn btn--ghost" disabled={busy || !canCancel(city.levels, city.queue, i, city.unitPop)} onClick={() => cancel.mutate(o.id)}>
                     {t('city.cancel')}
                   </button>
                 </div>
@@ -100,7 +100,7 @@ export function CityPanel({ city, speed }: { city: CityDto; speed: number }) {
         <h3>{t('city.buildings')}</h3>
         <ul className="buildings">
           {BUILDINGS.filter((b) => BUILDING_DEFS[b].enabled).map((b) => {
-            const check = checkBuild(live, city.queue, b);
+            const check = checkBuild(live, city.queue, b, city.unitPop);
             const next = planned[b] + 1;
             const maxed = next > BUILDING_DEFS[b].maxLevel;
             const cost = buildingCost(b, next);

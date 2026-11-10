@@ -1,5 +1,5 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
-import { ROUND_DAYS, START_LEVELS, START_RESOURCES, buildingPoints, generateRing } from '@romavis/shared';
+import { PROTECTION_HOURS, ROUND_DAYS, START_LEVELS, START_RESOURCES, buildingPoints, generateRing } from '@romavis/shared';
 import type { User } from './auth.ts';
 import type { Clock } from './clock.ts';
 import type { Db, Q, Tx } from './db/client.ts';
@@ -80,7 +80,10 @@ export async function joinWorld(db: Db, clock: Clock, user: User, worldId: numbe
     const siteId = pick.rows[0]?.id;
     if (siteId === undefined) throw new GameError('world_full', 409);
 
-    const [player] = await tx.insert(players).values({ userId: user.id, worldId: world.id, joinedAt: now, lastSeenAt: now }).returning();
+    const [player] = await tx.insert(players).values({
+      userId: user.id, worldId: world.id, joinedAt: now, lastSeenAt: now,
+      protectedUntil: new Date(now.getTime() + (PROTECTION_HOURS * 3_600_000) / world.speed),
+    }).returning();
     const [city] = await tx.insert(cities).values({
       worldId: world.id, siteId, playerId: player!.id, name: user.username,
       ...START_RESOURCES, resourcesAt: now, levels: { ...START_LEVELS },

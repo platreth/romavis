@@ -4,7 +4,10 @@ import { useTranslation } from 'react-i18next';
 import { ApiError, api, type UserDto } from './api.ts';
 import { setLanguage } from './i18n.ts';
 import { GameMap, useWorldMap } from './map/GameMap.tsx';
+import { ArmyPanel } from './panels/ArmyPanel.tsx';
 import { CityPanel } from './panels/CityPanel.tsx';
+import { ReportsPanel } from './panels/ReportsPanel.tsx';
+import { SendForm } from './panels/SendForm.tsx';
 import { SiteCard } from './panels/SiteCard.tsx';
 import { formatDuration, useServerNow, useUi } from './store.ts';
 
@@ -85,9 +88,15 @@ function useServerPush(enabled: boolean) {
       ws.onmessage = (e) => {
         try {
           const msg = JSON.parse(String(e.data)) as { type?: string; cityId?: number };
-          if (msg.type === 'city_updated' && typeof msg.cityId === 'number') {
-            void qc.invalidateQueries({ queryKey: ['city', msg.cityId] });
+          if (msg.type === 'city_updated') {
+            void qc.invalidateQueries({ queryKey: ['city'] });
             void qc.invalidateQueries({ queryKey: ['ringCities'] });
+          } else if (msg.type === 'movements' || msg.type === 'incoming') {
+            void qc.invalidateQueries({ queryKey: ['movements'] });
+            void qc.invalidateQueries({ queryKey: ['city'] });
+          } else if (msg.type === 'report') {
+            void qc.invalidateQueries({ queryKey: ['reports'] });
+            void qc.invalidateQueries({ queryKey: ['movements'] });
           }
         } catch { /* ignore malformed pushes */ }
       };
@@ -111,6 +120,8 @@ function Game({ user }: { user: UserDto }) {
   const syncClock = useUi((s) => s.syncClock);
   const panelOpen = useUi((s) => s.panelOpen);
   const setPanelOpen = useUi((s) => s.setPanelOpen);
+  const tab = useUi((s) => s.tab);
+  const setTab = useUi((s) => s.setTab);
 
   const world = useQuery({ queryKey: ['world'], queryFn: api.world, refetchInterval: 60_000 });
   useEffect(() => {
@@ -128,6 +139,20 @@ function Game({ user }: { user: UserDto }) {
     if (city.data) syncClock(city.data.serverTime);
   }, [city.data, syncClock]);
   useServerPush(player !== null);
+  const movements = useQuery({ queryKey: ['movements'], queryFn: api.movements, enabled: player !== null, refetchInterval: 20_000 });
+  const reports = useQuery({ queryKey: ['reports'], queryFn: api.reports, enabled: player !== null, refetchInterval: 60_000 });
+  const markRead = useMutation({ mutationFn: api.markReportsRead, onSuccess: () => qc.invalidateQueries({ queryKey: ['reports'] }) });
+  const unread = reports.data?.reports.filter((r) => !r.read).length ?? 0;
+  // A movement that should have arrived: ask the server what happened.
+  const nextArrival = Math.min(...(movements.data ? [...movements.data.own, ...movements.data.incoming].map((m) => m.arriveAt) : []), Infinity);
+  const arrived = now >= nextArrival;
+  useEffect(() => {
+    if (!arrived) return;
+    void qc.invalidateQueries({ queryKey: ['movements'] });
+    void qc.invalidateQueries({ queryKey: ['city'] });
+    void qc.invalidateQueries({ queryKey: ['reports'] });
+  }, [arrived, nextArrival, qc]);
+  const attacks = movements.data?.incoming.filter((m) => m.type === 'attack') ?? [];
   const map = useWorldMap(player ? world.data!.world.ringsGenerated : 0);
 
   const topBar = (
@@ -176,9 +201,26 @@ function Game({ user }: { user: UserDto }) {
         <button className="btn panel-toggle" aria-expanded={panelOpen} onClick={() => setPanelOpen(!panelOpen)}>
           {panelOpen ? t('top.map') : t('top.city')}
         </button>
-        {panelOpen && city.data && (
-          <aside className="panel"><CityPanel city={city.data.city} speed={w.speed} /></aside>
+        {attacks.length > 0 && (
+          <button className="incoming" onClick={() => setTab('army')}>
+            ⚔ {t('army.incomingAlert', { n: attacks.length, left: formatDuration(Math.min(...attacks.map((m) => m.arriveAt)) - now) })}
+          </button>
         )}
+        {panelOpen && city.data && (
+          <aside className="panel">
+            <nav className="tabs" aria-label="Panel">
+              {(['city', 'army', 'reports'] as const).map((k) => (
+                <button key={k} className={`tab ${tab === k ? 'tab--on' : ''}`} aria-current={tab === k} onClick={() => { setTab(k); if (k === 'reports' && unread > 0) markRead.mutate(); }}>
+                  {t(`tab.${k}`)}{k === 'reports' && unread > 0 && <span className="dot">{unread}</span>}
+                </button>
+              ))}
+            </nav>
+            {tab === 'city' && <CityPanel city={city.data.city} speed={w.speed} />}
+            {tab === 'army' && <ArmyPanel city={city.data.city} speed={w.speed} player={player} movements={movements.data} />}
+            {tab === 'reports' && <ReportsPanel reports={reports.data?.reports ?? []} />}
+          </aside>
+        )}
+        {city.data && <SendForm city={city.data.city} speed={w.speed} landmasses={map.landmasses} cities={map.cities} />}
       </div>
     </div>
   );

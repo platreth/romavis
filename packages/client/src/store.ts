@@ -6,6 +6,11 @@ interface UiState {
   /** Server time minus local time, in ms. */
   clockOffset: number;
   panelOpen: boolean;
+  tab: 'city' | 'army' | 'reports';
+  /** Site an army is being sent to, with the kind of mission. */
+  sending: { siteId: number; type: 'attack' | 'support' | 'raid' } | null;
+  setTab: (tab: UiState['tab']) => void;
+  setSending: (sending: UiState['sending']) => void;
   select: (siteId: number | null) => void;
   syncClock: (serverTime: number) => void;
   setPanelOpen: (open: boolean) => void;
@@ -15,6 +20,10 @@ export const useUi = create<UiState>((set) => ({
   selectedSiteId: null,
   clockOffset: 0,
   panelOpen: true,
+  tab: 'city',
+  sending: null,
+  setTab: (tab) => set({ tab, panelOpen: true }),
+  setSending: (sending) => set({ sending }),
   select: (selectedSiteId) => set({ selectedSiteId }),
   syncClock: (serverTime) => set({ clockOffset: serverTime - Date.now() }),
   setPanelOpen: (panelOpen) => set({ panelOpen }),

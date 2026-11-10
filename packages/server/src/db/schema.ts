@@ -1,8 +1,8 @@
 import { sql } from 'drizzle-orm';
 import {
-  boolean, index, integer, jsonb, pgTable, serial, text, timestamp, uniqueIndex,
+  boolean, doublePrecision, index, integer, jsonb, pgTable, primaryKey, serial, text, timestamp, uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import type { Levels } from '@romavis/shared';
+import type { Levels, Resources, UnitCounts } from '@romavis/shared';
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 
@@ -45,6 +45,11 @@ export const players = pgTable('players', {
   worldId: integer('world_id').notNull().references(() => worlds.id),
   joinedAt: ts('joined_at').notNull(),
   lastSeenAt: ts('last_seen_at').notNull(),
+  /** Other players cannot attack before this time. Cleared when the player attacks someone. */
+  protectedUntil: ts('protected_until'),
+  /** UTC hour at which the player's 8-hour night watch starts. Chosen once per round. */
+  nightWatchStart: integer('night_watch_start'),
+  gloriaBattle: integer('gloria_battle').notNull().default(0),
 }, (t) => [uniqueIndex('players_user_world').on(t.userId, t.worldId)]);
 
 export const landmasses = pgTable('landmasses', {
@@ -98,3 +103,66 @@ export const buildOrders = pgTable('build_orders', {
   startedAt: ts('started_at'),
   eventId: integer('event_id').references(() => gameEvents.id),
 }, (t) => [index('build_orders_city').on(t.cityId)]);
+
+export const recruitOrders = pgTable('recruit_orders', {
+  /** Queue order is id order, per building. */
+  id: serial('id').primaryKey(),
+  cityId: integer('city_id').notNull().references(() => cities.id),
+  building: text('building').notNull(),
+  unitType: text('unit_type').notNull(),
+  count: integer('count').notNull(),
+  startedAt: ts('started_at'),
+  eventId: integer('event_id').references(() => gameEvents.id),
+}, (t) => [index('recruit_orders_city').on(t.cityId)]);
+
+/** Units standing in a city. `homeCityId` is the city that pays their population. */
+export const unitStacks = pgTable('unit_stacks', {
+  id: serial('id').primaryKey(),
+  homeCityId: integer('home_city_id').notNull().references(() => cities.id),
+  cityId: integer('city_id').notNull().references(() => cities.id),
+  unitType: text('unit_type').notNull(),
+  count: integer('count').notNull(),
+}, (t) => [
+  uniqueIndex('unit_stacks_home_city_type').on(t.homeCityId, t.cityId, t.unitType),
+  index('unit_stacks_city').on(t.cityId),
+]);
+
+/** Units on the road. They are not in `unit_stacks` while moving. */
+export const movements = pgTable('movements', {
+  id: serial('id').primaryKey(),
+  worldId: integer('world_id').notNull().references(() => worlds.id),
+  type: text('type').$type<'attack' | 'support' | 'raid' | 'return'>().notNull(),
+  playerId: integer('player_id').notNull().references(() => players.id),
+  homeCityId: integer('home_city_id').notNull().references(() => cities.id),
+  fromSiteId: integer('from_site_id').notNull().references(() => sites.id),
+  toSiteId: integer('to_site_id').notNull().references(() => sites.id),
+  units: jsonb('units').$type<UnitCounts>().notNull(),
+  loot: jsonb('loot').$type<Resources>(),
+  departAt: ts('depart_at').notNull(),
+  arriveAt: ts('arrive_at').notNull(),
+  state: text('state').$type<'moving' | 'done' | 'recalled'>().notNull().default('moving'),
+  eventId: integer('event_id').references(() => gameEvents.id),
+}, (t) => [
+  index('movements_player').on(t.playerId).where(sql`${t.state} = 'moving'`),
+  index('movements_target').on(t.toSiteId).where(sql`${t.state} = 'moving'`),
+  index('movements_home').on(t.homeCityId).where(sql`${t.state} = 'moving'`),
+]);
+
+/** A player's private relationship with a native settlement. */
+export const nativeRelations = pgTable('native_relations', {
+  playerId: integer('player_id').notNull().references(() => players.id),
+  siteId: integer('site_id').notNull().references(() => sites.id),
+  standing: doublePrecision('standing').notNull(),
+  standingAt: ts('standing_at').notNull(),
+  tributeAt: ts('tribute_at').notNull(),
+}, (t) => [primaryKey({ columns: [t.playerId, t.siteId] })]);
+
+export const reports = pgTable('reports', {
+  id: serial('id').primaryKey(),
+  worldId: integer('world_id').notNull().references(() => worlds.id),
+  playerId: integer('player_id').notNull().references(() => players.id),
+  kind: text('kind').notNull(),
+  data: jsonb('data').$type<Record<string, unknown>>().notNull(),
+  createdAt: ts('created_at').notNull(),
+  readAt: ts('read_at'),
+}, (t) => [index('reports_player').on(t.playerId, t.id)]);

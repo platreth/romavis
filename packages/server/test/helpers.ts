@@ -25,6 +25,8 @@ export async function setupDatabase(): Promise<{ db: Db; pool: pg.Pool }> {
   await admin.connect();
   const exists = await admin.query('select 1 from pg_database where datname = $1', [TEST_DB]);
   if (exists.rowCount === 0) await admin.query(`create database ${TEST_DB}`);
+  // Tests do not need durability; without this every commit waits on a disk sync.
+  await admin.query(`alter database ${TEST_DB} set synchronous_commit = off`);
   await admin.end();
   const url = new URL(BASE);
   url.pathname = `/${TEST_DB}`;
@@ -35,7 +37,11 @@ export async function setupDatabase(): Promise<{ db: Db; pool: pg.Pool }> {
 
 export async function harness(conn: { db: Db; pool: pg.Pool }, opts: { speed?: number; origins?: Set<string> } = {}): Promise<Harness> {
   const { db, pool } = conn;
-  await db.execute(sql`truncate build_orders, game_events, cities, sites, landmasses, players, sessions, users, worlds restart identity cascade`);
+  // DELETE rather than TRUNCATE: truncate forces a file sync per table, which can take seconds.
+  for (const table of ['reports', 'native_relations', 'movements', 'unit_stacks', 'recruit_orders', 'build_orders', 'game_events',
+    'cities', 'sites', 'landmasses', 'players', 'sessions', 'users', 'worlds']) {
+    await db.execute(sql.raw(`delete from ${table}`));
+  }
   const clock = new TestClock();
   await createWorld(db, clock, { slug: 'test', seed: 42, speed: opts.speed ?? 1 });
   const make = async () => (await buildApp({ db, clock, rateLimit: false, allowedOrigins: opts.origins })).app;

@@ -64,7 +64,8 @@ describe('build queue rules', () => {
   it('rejects for each reason', () => {
     const rich = { timber: 1e9, stone: 1e9, iron: 1e9 };
     expect(checkBuild(city(), [], 'nope')).toEqual({ ok: false, error: 'unknown_building' });
-    expect(checkBuild(city(rich), [], 'castra')).toEqual({ ok: false, error: 'not_available' });
+    expect(checkBuild(city(rich), [], 'castra')).toEqual({ ok: false, error: 'prerequisite' });
+    expect(checkBuild(city(rich), [], 'forum', 1000)).toEqual({ ok: false, error: 'population' });
     expect(checkBuild(city({ timber: 0 }), [], 'forum')).toEqual({ ok: false, error: 'resources' });
     const full = Array.from({ length: BUILD_QUEUE_SLOTS }, (_, i) => ({ building: 'forum' as const, targetLevel: i + 2 }));
     expect(checkBuild(city(rich), full, 'forum')).toEqual({ ok: false, error: 'queue_full' });

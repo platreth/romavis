@@ -35,6 +35,10 @@ export function populationCap(fundusLevel: number): number {
   return Math.round(POP_BASE * POP_GROWTH ** (Math.max(1, fundusLevel) - 1));
 }
 
+export function wallBonus(murusLevel: number): number {
+  return 0.04 * murusLevel;
+}
+
 export function populationUsed(levels: Levels): number {
   let used = 0;
   for (const b of BUILDINGS) used += levels[b] * BUILDING_DEFS[b].pop;
@@ -94,8 +98,8 @@ export type BuildCheck =
   | { ok: true; targetLevel: number; cost: Resources }
   | { ok: false; error: BuildError };
 
-/** Can `building` be added to the queue of a (settled) city? */
-export function checkBuild(city: CityEconomy, queue: readonly QueueItem[], building: string): BuildCheck {
+/** Can `building` be added to the queue of a (settled) city? `unitPop` is the population its troops use. */
+export function checkBuild(city: CityEconomy, queue: readonly QueueItem[], building: string, unitPop = 0): BuildCheck {
   if (!isBuildingId(building)) return { ok: false, error: 'unknown_building' };
   const def = BUILDING_DEFS[building];
   if (!def.enabled) return { ok: false, error: 'not_available' };
@@ -109,7 +113,7 @@ export function checkBuild(city: CityEconomy, queue: readonly QueueItem[], build
   const cost = buildingCost(building, targetLevel);
   for (const r of RESOURCES) if (city[r] < cost[r]) return { ok: false, error: 'resources' };
   const after = { ...planned, [building]: targetLevel };
-  if (populationUsed(after) > populationCap(planned.fundus)) return { ok: false, error: 'population' };
+  if (populationUsed(after) + unitPop > populationCap(planned.fundus)) return { ok: false, error: 'population' };
   return { ok: true, targetLevel, cost };
 }
 
@@ -117,7 +121,7 @@ export function checkBuild(city: CityEconomy, queue: readonly QueueItem[], build
  * An order can be cancelled only if nothing queued after it depends on it:
  * a higher level of the same building, or a building whose prerequisite it provides.
  */
-export function canCancel(levels: Levels, queue: readonly QueueItem[], index: number): boolean {
+export function canCancel(levels: Levels, queue: readonly QueueItem[], index: number, unitPop = 0): boolean {
   const item = queue[index];
   if (!item) return false;
   const remaining = queue.filter((_, i) => i !== index);
@@ -128,9 +132,9 @@ export function canCancel(levels: Levels, queue: readonly QueueItem[], index: nu
       if (planned[req as BuildingId] < (lvl ?? 0)) return false;
     }
     planned[q.building] = q.targetLevel;
-    if (populationUsed(planned) > populationCap(planned.fundus)) return false;
   }
-  return true;
+  // Cancelling a Fundus level must not leave buildings and troops without room.
+  return populationUsed(planned) + unitPop <= populationCap(planned.fundus);
 }
 
 export function addResources(a: Resources, b: Resources, sign: 1 | -1 = 1): Resources {

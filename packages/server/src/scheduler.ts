@@ -1,10 +1,12 @@
 import { and, asc, eq, isNull, lte, min } from 'drizzle-orm';
-import { handleBuildDone, userIdOfPlayer } from './city.ts';
+import { handleBuildDone } from './city.ts';
+import { handleMovementArrive, handleRecruitDone } from './military.ts';
+import { userIdOfPlayer, type Push } from './stacks.ts';
 import type { Clock } from './clock.ts';
 import type { Db } from './db/client.ts';
 import { gameEvents, worlds } from './db/schema.ts';
 
-export type Notify = (userId: number, message: { type: string; cityId?: number }) => void;
+export type Notify = (userId: number, message: Push['message']) => void;
 
 const MAX_SLEEP_MS = 30_000;
 
@@ -36,18 +38,30 @@ export class Scheduler {
           .orderBy(asc(gameEvents.dueAt), asc(gameEvents.id)).limit(1)
           .for('update', { skipLocked: true });
         if (!event) return null;
-        const [world] = await tx.select({ speed: worlds.speed }).from(worlds).where(eq(worlds.id, event.worldId));
-        let changed: Awaited<ReturnType<typeof handleBuildDone>> = null;
-        if (event.type === 'build_done') changed = await handleBuildDone(tx, event.dueAt, world?.speed ?? 1, event.payload);
+        const [world] = await tx.select().from(worlds).where(eq(worlds.id, event.worldId));
+        let pushes: Push[] = [];
+        if (world) {
+          if (event.type === 'build_done') pushes = await handleBuildDone(tx, event.dueAt, world.speed, event.payload);
+          else if (event.type === 'recruit_done') pushes = await handleRecruitDone(tx, event.dueAt, world.speed, event.payload);
+          else if (event.type === 'movement_arrive') pushes = await handleMovementArrive(tx, event.dueAt, world, event.payload);
+        }
         await tx.update(gameEvents).set({ doneAt: now }).where(eq(gameEvents.id, event.id));
-        return { changed };
+        return { pushes };
       });
       if (!outcome) return;
-      const changed = outcome.changed;
-      if (changed?.playerId != null) {
-        const userId = await userIdOfPlayer(this.db, changed.playerId);
-        if (userId !== null) this.notify(userId, { type: 'city_updated', cityId: changed.cityId });
-      }
+      await this.push(outcome.pushes);
+    }
+  }
+
+  /** Deliver refetch hints to the players' open clients. */
+  async push(pushes: Push[]): Promise<void> {
+    const seen = new Set<string>();
+    for (const p of pushes) {
+      const key = `${p.playerId}:${p.message.type}:${p.message.cityId ?? ''}`;
+      if (p.playerId === null || seen.has(key)) continue;
+      seen.add(key);
+      const userId = await userIdOfPlayer(this.db, p.playerId);
+      if (userId !== null) this.notify(userId, p.message);
     }
   }
 

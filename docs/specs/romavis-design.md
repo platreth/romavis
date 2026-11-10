@@ -192,7 +192,14 @@ has a defence value against each class.
 | Navis oneraria | ship | Transport, no combat | — | — | — | — | 10 | — | 5 |
 
 Speed is world units per hour at speed 1. A transport carries 25 population of troops.
-Costs and recruitment times live in `shared/data`. These are starting values.
+Costs and recruitment times live in `shared/src/units.ts`. These are starting values.
+
+**Recruitment.** Hastatus needs Castra 1, Sagittarius Castra 3, Triarius Castra 5, Eques
+Castra 8, Navis oneraria Portus 1. Units are ordered in batches (up to 500); a batch is
+paid when ordered and arrives all at once when it finishes. Castra and Portus each hold up
+to 5 batches, trained one after another. Each building level shortens training by 6 %.
+Troops need population that exists now: only built Fundus levels count. Recruitment
+orders cannot be cancelled.
 
 ### 7.2 Movements
 
@@ -203,6 +210,8 @@ Costs and recruitment times live in `shared/data`. These are starting values.
 - Travel time = distance ÷ speed ÷ world speed, rounded up to the second.
 - A movement can be recalled during its first 5 minutes ÷ speed; it returns taking as long
   as it has travelled.
+- Armies leave only from their home city. Ships sent on a same-landmass trip are refused.
+- Returning troops unload their loot up to the Horreum's capacity; the rest is lost.
 - A player sees their own movements, and incoming movements against their cities (type and
   arrival time, not composition). Nothing else is ever sent to the client.
 
@@ -238,13 +247,26 @@ attacker wins if r > 1
 
 - An even fight (q = 1) costs both sides half. At q ≈ 1.6 the loser is wiped out.
 - `cityBase = 20 × (1 + murusLevel)` so an empty city is not free.
-- Losses are applied per stack with rounding that preserves the totals.
+- Losses are applied per stack and unit type, rounded to the nearest unit. Ships do not
+  fight and are not lost.
 - If the attacker wins, survivors loot up to their total carry, split evenly across the
   three resources, never taking the Horreum's protected share (10 % of capacity).
 - Surviving attackers return automatically. Surviving defenders stay.
 - Both sides get a **battle report** containing the inputs, seed, luck, and losses.
 
-### 7.5 Gloria
+### 7.5 Natives, protection and night watch in numbers
+
+- Tribute: 12 × speed × standing ÷ 100 of each resource per hour per settlement, capped at
+  8 h ÷ speed. Standing starts at 60, rises 1.5 per hour × speed, and drops 30 per raid.
+- Raid: fought against a garrison of 120 × (1 + 0.4 × round day). A win brings back, per
+  resource, the smaller of a third of the survivors' carry and 150 × (1 + 0.25 × round day)
+  × (0.5 + standing ÷ 200).
+- Night watch: the player picks a start hour once per round (stored as a UTC hour, shown in
+  local time). It cannot be changed afterwards.
+- Attacking another player ends the attacker's own beginner protection.
+- Supporters can be sent home by their owner or by the host.
+
+### 7.6 Gloria
 
 ```
 Gloria = building points (Σ level² over buildings, all cities)
@@ -382,12 +404,15 @@ GET  /api/cities                                GET  /api/cities/:id
 POST /api/cities/:id/build                      DELETE /api/cities/:id/build/:orderId
 POST /api/cities/:id/recruit                    POST /api/cities/:id/collect-tribute
 POST /api/movements                             POST /api/movements/:id/recall
-GET  /api/movements                             GET  /api/reports   GET /api/reports/:id
-GET  /api/rankings                              POST /api/simulate   (runs shared combat)
+GET  /api/movements                             GET  /api/reports
+POST /api/cities/:id/recruit                    POST /api/support/return
+POST /api/reports/read                          POST /api/player/night-watch
+GET  /api/rankings   (Milestone 3)
 WS   /ws
 ```
 
-All inputs validated with schemas at the boundary. Rate limits on auth and on commands.
+The battle simulator runs in the browser on the shared combat code, so it needs no
+endpoint. All inputs validated with schemas at the boundary. Rate limits on auth and on commands.
 
 ### 9.8 Abuse basics
 

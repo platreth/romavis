@@ -85,6 +85,43 @@ p { margin: 0.4rem 0; }
 .site-card__close { position: absolute; top: 0.2rem; right: 0.3rem; border: 0; background: none; font-size: 1.4rem; line-height: 1; cursor: pointer; color: var(--ink-soft); width: 36px; height: 36px; }
 .coords { font-size: 0.72rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; margin-top: 0.4rem; }
 
+
+.tabs { display: flex; gap: 0.3rem; margin: -0.3rem 0 0.8rem; border-bottom: 1px solid var(--line); }
+.tab { font: inherit; font-weight: 600; background: none; border: 0; border-bottom: 3px solid transparent; padding: 0.55rem 0.8rem; cursor: pointer; color: var(--ink-soft); min-height: 40px; }
+.tab--on { color: var(--terracotta-dark); border-bottom-color: var(--terracotta); }
+.tab:focus-visible, select:focus-visible, summary:focus-visible, .incoming:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.dot { display: inline-block; min-width: 1.2rem; margin-left: 0.35rem; padding: 0 0.3rem; border-radius: 999px; background: var(--terracotta); color: #fff; font-size: 0.72rem; text-align: center; }
+.row { display: flex; align-items: center; gap: 0.6rem; background: #fffaf0; border: 1px solid var(--line); border-radius: 8px; padding: 0.5rem 0.7rem; margin-bottom: 0.4rem; flex-wrap: wrap; }
+.row__main { flex: 1; min-width: 0; }
+.row--danger { border-color: var(--danger); background: #f6dcd5; }
+.note { background: #e9efd9; border: 1px solid #c3cfa0; border-radius: 6px; padding: 0.5rem 0.7rem; font-size: 0.88rem; }
+.unit-list { display: inline-flex; flex-wrap: wrap; gap: 0.25rem 0.4rem; }
+.unit-chip { background: var(--parchment-2); border: 1px solid var(--line); border-radius: 999px; padding: 0.05rem 0.55rem; font-size: 0.8rem; white-space: nowrap; }
+.building--locked { opacity: 0.6; }
+.recruit { display: flex; flex-direction: column; gap: 0.3rem; width: 6.5rem; flex: none; }
+.recruit input, .send-row input, .sim input[type='number'], select { font: inherit; width: 100%; padding: 0.4rem; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); min-height: 36px; }
+.modal { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; padding: 1rem; background: rgba(10, 25, 35, 0.55); overflow: auto; }
+.modal__actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.8rem; }
+.send-row { display: grid !important; grid-template-columns: 1fr 5.5rem auto; align-items: center; gap: 0.5rem; }
+.send-row input { margin-top: 0; }
+.site-card__actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.incoming { position: absolute; left: 50%; top: 0.6rem; transform: translateX(-50%); z-index: 4; font: inherit; font-weight: 700; color: #fff; background: var(--danger); border: 2px solid #fff; border-radius: 999px; padding: 0.4rem 1rem; cursor: pointer; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4); max-width: calc(100% - 1.6rem); }
+.report { background: #fffaf0; border: 1px solid var(--line); border-radius: 8px; padding: 0.5rem 0.7rem; }
+.report--new { border-left: 4px solid var(--terracotta); }
+.report summary, .sim summary { cursor: pointer; }
+.report__body { margin: 0.6rem 0 0.3rem; }
+.report__body dt { font-weight: 700; margin-top: 0.4rem; }
+.report__body dd { margin: 0.15rem 0 0; }
+.pill { font-size: 0.72rem; font-weight: 700; border-radius: 999px; padding: 0.1rem 0.5rem; color: #fff; }
+.pill--win { background: #55742c; }
+.pill--loss { background: var(--danger); }
+.sim { background: var(--parchment-2); border: 1px solid var(--line); border-radius: 8px; padding: 0.5rem 0.7rem; margin-bottom: 0.8rem; }
+.sim summary { font-weight: 700; }
+.sim__table { width: 100%; border-collapse: collapse; margin: 0.5rem 0; font-size: 0.85rem; }
+.sim__table th { text-align: left; font-weight: 600; padding: 0.15rem 0.3rem 0.15rem 0; }
+.sim__table td { padding: 0.15rem; width: 32%; }
+.sim__check { display: flex; align-items: center; gap: 0.4rem; margin: 0.3rem 0 0.5rem; font-size: 0.88rem; }
+
 @media (max-width: 720px) {
   .top__round, .top__user { display: none; }
   .panel { top: auto; height: 62%; width: 100%; border-left: 0; border-top: 2px solid var(--gold); border-radius: 14px 14px 0 0; }

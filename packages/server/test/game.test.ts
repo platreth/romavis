@@ -195,7 +195,7 @@ describe('build queue', () => {
     const other = await signup(h, 'thief');
     const a = api(h, s);
     expect((await a.build(s.cityId, 'colosseum')).json()).toEqual({ error: 'unknown_building' });
-    expect((await a.build(s.cityId, 'castra')).json()).toEqual({ error: 'not_available' });
+    expect((await a.build(s.cityId, 'castra')).json()).toEqual({ error: 'prerequisite' });
     await h.db.update(cities).set({ timber: 0 }).where(eq(cities.id, s.cityId));
     await h.db.update(cities).set({ resourcesAt: h.clock.now() }).where(eq(cities.id, s.cityId));
     expect((await a.build(s.cityId, 'forum')).json()).toEqual({ error: 'resources' });

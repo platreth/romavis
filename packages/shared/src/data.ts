@@ -30,9 +30,9 @@ export const BUILDING_DEFS: Record<BuildingId, BuildingDef> = {
   ferraria:   { baseCost: { timber: 60, stone: 50, iron: 30 }, baseTime: 70, pop: 2, maxLevel: 20, enabled: true, produces: 'iron' },
   fundus:     { baseCost: { timber: 50, stone: 40, iron: 25 }, baseTime: 70, pop: 0, maxLevel: 20, enabled: true },
   horreum:    { baseCost: { timber: 60, stone: 45, iron: 20 }, baseTime: 70, pop: 1, maxLevel: 20, enabled: true },
-  castra:     { baseCost: { timber: 120, stone: 100, iron: 140 }, baseTime: 100, pop: 3, maxLevel: 20, requires: { forum: 3 }, enabled: false },
-  murus:      { baseCost: { timber: 50, stone: 150, iron: 40 }, baseTime: 90, pop: 2, maxLevel: 20, requires: { forum: 5 }, enabled: false },
-  portus:     { baseCost: { timber: 300, stone: 150, iron: 200 }, baseTime: 240, pop: 4, maxLevel: 10, requires: { forum: 8 }, enabled: false },
+  castra:     { baseCost: { timber: 120, stone: 100, iron: 140 }, baseTime: 100, pop: 3, maxLevel: 20, requires: { forum: 3 }, enabled: true },
+  murus:      { baseCost: { timber: 50, stone: 150, iron: 40 }, baseTime: 90, pop: 2, maxLevel: 20, requires: { forum: 5 }, enabled: true },
+  portus:     { baseCost: { timber: 300, stone: 150, iron: 200 }, baseTime: 240, pop: 4, maxLevel: 10, requires: { forum: 8 }, enabled: true },
 };
 
 export const COST_GROWTH = 1.32;
