@@ -1,5 +1,7 @@
 # Epic 1 — Core Engine
 
+> **Superseded.** This document is kept for history only. The current design is [`romavis-design.md`](romavis-design.md); do not build from this file.
+
 ## 1.1 Auth & Registration
 
 **Goal**: Public registration with multi-world support. Players create one account and can join any open world.

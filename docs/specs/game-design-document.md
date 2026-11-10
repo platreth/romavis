@@ -1,5 +1,7 @@
 # Game Design Document — Imperium
 
+> **Superseded.** This document is kept for history only. The current design is [`romavis-design.md`](romavis-design.md); do not build from this file.
+
 > Roman Empire browser strategy MMO — free to play, no pay-to-win, skins-only monetization.
 
 ---
